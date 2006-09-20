@@ -1,0 +1,22 @@
+2004/12/27 - 1.3.2
+
+- now works with ImageJ 1.33x
+
+2004/12/27 - 1.3.1
+
+- added snapshot feature, this feature permits to export a snapshot of a selection
+- added stacks support
+
+2004/11/10 - 1.1.0
+- added graphic panel
+- added control on working state feature (start/stop the plugin)
+- added exit feature
+- code reorganized
+
+2004/11/01 - 1.0.1 
+- a better and more organized code
+- new code comments
+- added an image to test the plugin
+
+2004/06/22 - 1.0.0 
+- first release, just an automatic selection tool
