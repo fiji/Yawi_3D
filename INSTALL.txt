@@ -1,0 +1,14 @@
+How to install Yawi2D (compiled version)?
+
+1. download the plugin to ImageJ plugins directory.
+2. unpack the downloaded file.
+3. Run ImageJ.
+
+
+How to install and compile Yawi2D (source version)?
+
+1. download the plugin to ImageJ plugins directory.
+2. unpack the downloaded file.
+3. Run ImageJ.
+4. Load a 8-bit image.
+5. Plugins -> Compile and Run -> plugins/Yawi_3D/Yawi_2D.java -> OK
