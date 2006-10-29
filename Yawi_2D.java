@@ -139,7 +139,7 @@ public class Yawi_2D implements PlugInFilter
 
 		this.img = img;
 		this.stack = img.getStack();
-	
+
 		return DOES_8G+NO_CHANGES;
 	}
 
@@ -653,8 +653,6 @@ public class Yawi_2D implements PlugInFilter
 			//the plugin is executed only if it's active <=> work=true
 			if(work)
 			{
-				//int off_X = canvas.offScreenX(x);
-				//int off_Y = canvas.offScreenY(y);
 				int off_X = x;
 				int off_Y = y;
 
@@ -664,10 +662,23 @@ public class Yawi_2D implements PlugInFilter
 				//there's a selection
 				if(traceEdge())
 				{
+/*
+					IJ.write("num points ROI: " + npoints + "\n");
+					ResultsTable rt = ResultsTable.getResultsTable();
+					rt.reset();
+					for (int i = 0; i < npoints ; i++) 
+					{
+						rt.incrementCounter();
+						rt.addValue("ROI_x", xpoints[i]);
+						rt.addValue("ROI_y", ypoints[i]);
+					}
+
+					rt.show("Base ROI Points");
+*/
 					roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
 					img.setRoi(roi);
 //					roi.addOrSubtract();
-
+/*
 					IJ.write("num points ROI: " + npoints + "\n");
 					IJ.write("num points BROI: " + npoints_broi + "\n");
 					IJ.write("ROI: " + roi + "\n");
@@ -694,6 +705,7 @@ public class Yawi_2D implements PlugInFilter
 						rt2.addValue("BROI_y", broi_points[i].getY());
 					}
 					rt2.show("Border ROI Points");
+*/
 				}
 				else	//no selection
 				{
@@ -719,7 +731,7 @@ public class Yawi_2D implements PlugInFilter
 		private Button button1, button2, button3, button4;
 		private Button button5, button6, button7;
 		private Button button8, button9;
-		private Button button10;
+		private Button button10, button11;
 
 		private TextField x_field, y_field;
 
@@ -816,6 +828,11 @@ public class Yawi_2D implements PlugInFilter
 			button10 = new Button(" Generate ROIs ");
 			button10.addActionListener(this);
 			panel.add(button10);
+
+			//add a button to the pannel
+			button11 = new Button(" Smooth ROI ");
+			button11.addActionListener(this);
+			panel.add(button11);
 
 			//add the pannel to the window and show it
 			add(panel);
@@ -920,7 +937,6 @@ public class Yawi_2D implements PlugInFilter
 				}
 
 				//save new image
-				//fs.saveAsJpeg();
 				fs.saveAsPng();
 			}
 			else if(b == button5)
@@ -1128,6 +1144,54 @@ public class Yawi_2D implements PlugInFilter
 					}
 				}
 			}
+			else if(b == button11)
+			{
+				//make new arrays
+	 			int[] xpoints_smooth = new int[npoints];
+	 			int[] ypoints_smooth = new int[npoints];
+
+				boolean search = true;
+				boolean found = false;
+				int s_ind;
+				int smooth_points = 0;
+
+				for(int i = 0; i < npoints - 1; i++)
+				{
+					s_ind = i + 1;
+
+					while(s_ind < npoints && !found)
+					{
+						// found an equal point
+						if(xpoints_b[i] == xpoints_b[s_ind] && ypoints_b[i] == ypoints_b[s_ind])
+							found = true;
+
+						s_ind++;
+					}
+
+					if(found)
+					{
+						found = false;
+						i = s_ind;
+					}
+
+					xpoints_smooth[smooth_points] = xpoints_b[i];
+					ypoints_smooth[smooth_points] = ypoints_b[i];
+					smooth_points++;
+				}
+
+				smooth_points--;
+
+				for(int i = 0; i < smooth_points; i++)
+				{
+					xpoints_b[i] = xpoints_smooth[i];
+					ypoints_b[i] = ypoints_smooth[i];
+				}
+
+				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
+				img.setRoi(roi);
+
+				npoints = smooth_points;
+			}
 		}
 
 		/// compare the second ROI to the first one and return a similarity value
@@ -1324,7 +1388,7 @@ public class Yawi_2D implements PlugInFilter
 				exp_ip.setColor(Color.yellow);
 				
 				//draw ROI lines
-				for(int i = 0; i < npoints-1 ; i++)
+				for(int i = 0; i < npoints - 1 ; i++)
 						exp_ip.drawLine(xpoints_b[i], ypoints_b[i], xpoints_b[i+1], ypoints_b[i+1]); 
 
 				//save new image
