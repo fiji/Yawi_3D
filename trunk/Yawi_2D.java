@@ -662,7 +662,6 @@ public class Yawi_2D implements PlugInFilter
 				//there's a selection
 				if(traceEdge())
 				{
-/*
 					IJ.write("num points ROI: " + npoints + "\n");
 					ResultsTable rt = ResultsTable.getResultsTable();
 					rt.reset();
@@ -674,7 +673,7 @@ public class Yawi_2D implements PlugInFilter
 					}
 
 					rt.show("Base ROI Points");
-*/
+
 					roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
 					img.setRoi(roi);
 //					roi.addOrSubtract();
@@ -731,7 +730,7 @@ public class Yawi_2D implements PlugInFilter
 		private Button button1, button2, button3, button4;
 		private Button button5, button6, button7;
 		private Button button8, button9;
-		private Button button10, button11;
+		private Button button10, button11, button12;
 
 		private TextField x_field, y_field;
 
@@ -833,6 +832,11 @@ public class Yawi_2D implements PlugInFilter
 			button11 = new Button(" Smooth ROI ");
 			button11.addActionListener(this);
 			panel.add(button11);
+
+			//add a button to the pannel
+			button12 = new Button(" Smooth ROI 2 ");
+			button12.addActionListener(this);
+			panel.add(button12);
 
 			//add the pannel to the window and show it
 			add(panel);
@@ -1155,7 +1159,7 @@ public class Yawi_2D implements PlugInFilter
 				int s_ind;
 				int smooth_points = 0;
 
-				for(int i = 0; i < npoints - 1; i++)
+				for(int i = 0; i < npoints; i++)
 				{
 					s_ind = i + 1;
 
@@ -1170,16 +1174,20 @@ public class Yawi_2D implements PlugInFilter
 
 					if(found)
 					{
+						s_ind--;
+
+//						IJ.write("Found equal points - i: " + i + " -> " + xpoints_b[i] + "," + ypoints_b[i] + 
+//								 " s_ind: " + s_ind + " -> " + xpoints_b[s_ind] + "," + ypoints_b[s_ind] + "\n");
+
 						found = false;
 						i = s_ind;
 					}
 
 					xpoints_smooth[smooth_points] = xpoints_b[i];
 					ypoints_smooth[smooth_points] = ypoints_b[i];
+
 					smooth_points++;
 				}
-
-				smooth_points--;
 
 				for(int i = 0; i < smooth_points; i++)
 				{
@@ -1187,10 +1195,98 @@ public class Yawi_2D implements PlugInFilter
 					ypoints_b[i] = ypoints_smooth[i];
 				}
 
+				npoints = smooth_points;
+
+/*
+				ResultsTable rt = ResultsTable.getResultsTable();
+				rt.reset();
+				for (int i = 0; i < npoints ; i++) 
+				{
+					rt.incrementCounter();
+					rt.addValue("ROI_x", xpoints_b[i]);
+					rt.addValue("ROI_y", ypoints_b[i]);
+				}
+				
+				rt.show("smoothed ROI Points");
+*/
 				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
 				img.setRoi(roi);
+			}
+			else if(b == button12)
+			{
+				IJ.write("NOT IMPLEMENTED YET\n");
+/*
+				//make new arrays
+	 			int[] xpoints_smooth = new int[npoints];
+	 			int[] ypoints_smooth = new int[npoints];
+
+				boolean search = true;
+				boolean found = false;
+				int s_ind;
+				int smooth_points = 0;
+
+				for(int i = 0; i < npoints - 1; i++)
+				{
+					//IJ.write("i: " + i + "\n");
+
+					xpoints_smooth[smooth_points] = xpoints_b[i];
+					ypoints_smooth[smooth_points] = ypoints_b[i];
+					smooth_points++;
+
+					s_ind = i + 1;
+
+					while(s_ind < npoints && !found)
+					{
+						// found a close point
+						if((xpoints_b[i] == xpoints_b[s_ind] && Math.abs(ypoints_b[i] - ypoints_b[s_ind]) == 2) ||
+						   (ypoints_b[i] == ypoints_b[s_ind] && Math.abs(xpoints_b[i] - xpoints_b[s_ind]) == 2))
+							found = true;
+
+						s_ind++;
+					}
+
+					if(found)
+					{
+						s_ind--;
+
+						IJ.write("Found close points - i: " + i + " -> " + xpoints_b[i] + "," + ypoints_b[i] + 
+								 " s_ind: " + s_ind + " -> " + xpoints_b[s_ind] + "," + ypoints_b[s_ind] + "\n");
+
+						found = false;
+						i = s_ind;
+					}
+
+//					IJ.write("s_ind: " + s_ind + "\n");
+
+					xpoints_smooth[smooth_points] = xpoints_b[i + 1];
+					ypoints_smooth[smooth_points] = ypoints_b[i + 1];
+
+					smooth_points++;
+				}
+
+				for(int i = 0; i < smooth_points; i++)
+				{
+					xpoints_b[i] = xpoints_smooth[i];
+					ypoints_b[i] = ypoints_smooth[i];
+				}
 
 				npoints = smooth_points;
+
+
+				ResultsTable rt = ResultsTable.getResultsTable();
+				rt.reset();
+				for (int i = 0; i < npoints ; i++) 
+				{
+					rt.incrementCounter();
+					rt.addValue("ROI_x", xpoints_b[i]);
+					rt.addValue("ROI_y", ypoints_b[i]);
+				}
+				
+				rt.show("smoothed ROI Points");
+
+				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
+				img.setRoi(roi);
+*/
 			}
 		}
 
