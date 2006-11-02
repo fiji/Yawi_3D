@@ -1,6 +1,8 @@
 /////////////////////////////////////////////////////////////////
 //
-// Yawi2D (Yet Another Wand for ImageJ) 2D tool - version 1.3.2
+//			Yawi2D (Yet Another Wand for ImageJ 2D)
+//						SVN version
+//				http://yawi3d.sourceforge.net
 //
 // This is the selection tool (magic wand) used on 2D slices 
 // to select ROIs. It uses an adaptive algorithm based on cromatic 
@@ -17,7 +19,7 @@
 // Start date: 
 // 	2004-05-05
 // Last update date: 
-// 	2004-12-27 
+// 	2006-11-02 
 //
 // Authors:
 // 	Davide Coppola - dmc@dev-labs.net
@@ -1176,9 +1178,6 @@ public class Yawi_2D implements PlugInFilter
 					{
 						s_ind--;
 
-//						IJ.write("Found equal points - i: " + i + " -> " + xpoints_b[i] + "," + ypoints_b[i] + 
-//								 " s_ind: " + s_ind + " -> " + xpoints_b[s_ind] + "," + ypoints_b[s_ind] + "\n");
-
 						found = false;
 						i = s_ind;
 					}
@@ -1197,25 +1196,11 @@ public class Yawi_2D implements PlugInFilter
 
 				npoints = smooth_points;
 
-/*
-				ResultsTable rt = ResultsTable.getResultsTable();
-				rt.reset();
-				for (int i = 0; i < npoints ; i++) 
-				{
-					rt.incrementCounter();
-					rt.addValue("ROI_x", xpoints_b[i]);
-					rt.addValue("ROI_y", ypoints_b[i]);
-				}
-				
-				rt.show("smoothed ROI Points");
-*/
 				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
 				img.setRoi(roi);
 			}
 			else if(b == button12)
 			{
-				IJ.write("NOT IMPLEMENTED YET\n");
-/*
 				//make new arrays
 	 			int[] xpoints_smooth = new int[npoints];
 	 			int[] ypoints_smooth = new int[npoints];
@@ -1225,9 +1210,65 @@ public class Yawi_2D implements PlugInFilter
 				int s_ind;
 				int smooth_points = 0;
 
+				int cur_ind = 0;
+
+				while(cur_ind < npoints)
+				{
+					IJ.write("first point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
+							+ "," + ypoints_b[cur_ind] + "\n");
+
+					//copy a point
+					xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
+					ypoints_smooth[smooth_points] = ypoints_b[cur_ind];
+					smooth_points++;
+
+					s_ind = cur_ind + 1;
+
+					// look for a close point
+					while(s_ind < npoints && !found)
+					{
+						// found a close point
+						if((xpoints_b[cur_ind] == xpoints_b[s_ind] && 
+							Math.abs(ypoints_b[cur_ind] - ypoints_b[s_ind]) == 2) ||
+						   (ypoints_b[cur_ind] == ypoints_b[s_ind] && 
+							Math.abs(xpoints_b[cur_ind] - xpoints_b[s_ind]) == 2))
+							found = true;
+
+						s_ind++;
+					}
+
+					// close point found
+					if(found)
+					{
+						s_ind--;
+
+						IJ.write("Found close points - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] + "," 
+									+ ypoints_b[cur_ind] + " s_ind: " + s_ind + " -> " + xpoints_b[s_ind]
+									+ "," + ypoints_b[s_ind] + "\n");
+
+						found = false;
+						cur_ind = s_ind;
+					}
+					else
+						cur_ind++;
+
+					if(cur_ind < npoints)
+					{
+						IJ.write("second point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
+								+ "," + ypoints_b[cur_ind] + "\n");
+
+						xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
+						ypoints_smooth[smooth_points] = ypoints_b[cur_ind];
+
+						smooth_points++;
+						cur_ind++;
+					}
+				}
+
+/*
 				for(int i = 0; i < npoints - 1; i++)
 				{
-					//IJ.write("i: " + i + "\n");
+					IJ.write("i: " + i + "\n");
 
 					xpoints_smooth[smooth_points] = xpoints_b[i];
 					ypoints_smooth[smooth_points] = ypoints_b[i];
@@ -1256,13 +1297,14 @@ public class Yawi_2D implements PlugInFilter
 						i = s_ind;
 					}
 
-//					IJ.write("s_ind: " + s_ind + "\n");
+					IJ.write("i + 1: " + (i+1) + " smooth_points: " + smooth_points + "\n");
 
 					xpoints_smooth[smooth_points] = xpoints_b[i + 1];
 					ypoints_smooth[smooth_points] = ypoints_b[i + 1];
 
 					smooth_points++;
 				}
+*/
 
 				for(int i = 0; i < smooth_points; i++)
 				{
@@ -1286,7 +1328,6 @@ public class Yawi_2D implements PlugInFilter
 
 				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
 				img.setRoi(roi);
-*/
 			}
 		}
 
