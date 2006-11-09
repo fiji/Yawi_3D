@@ -78,6 +78,11 @@ public class Yawi_2D implements PlugInFilter
 	private int maxPoints = 1000; 
 	private int maxBROIPoints = 2000;
 
+	// starting point X
+	private int start_x;
+	// starting point Y
+	private int start_y;
+
 	// The x-coordinates of the points in the outline. 
 	private int[] xpoints = new int[maxPoints];
 	// The y-coordinates of the points in the outline. 
@@ -591,20 +596,19 @@ public class Yawi_2D implements PlugInFilter
 
         void drawOverlay(Graphics g)
 		{
-			if(npoints_broi > 0 && show_broi == true)
+			if(npoints > 0)
 			{
-				g.setColor(Color.blue);
+				// set color for origin point according to its threshold
+				int value = pixels[(ip_width * start_y) + start_x] & 0xff;
+				// a point inside the treshold
+				if(value >= lowerThreshold && value <= upperThreshold)
+					g.setColor(Color.green);
+				// a point not in the treshold
+				else
+					g.setColor(Color.red);
 
-				for(int i = 0; i < npoints_broi ; i++)
-					g.drawRect(screenX((int)broi_points[i].getX()), screenY((int)broi_points[i].getY()), 1, 1);
-			}
+				g.drawString("ROI from " + start_x + "," + start_y, 15, 15);
 
-			if(npoints > 0 && show_roi == true)
-			{
-				g.setColor(Color.cyan);
-
-				for(int i = 0; i < npoints ; i++)
-					g.drawRect(screenX(xpoints_b[i]), screenY(ypoints_b[i]), 1, 1);
 			}
 
 			if(npoints_broi > 0 && show_roi_fill == true)
@@ -632,6 +636,22 @@ public class Yawi_2D implements PlugInFilter
 					}
 				}
 			}
+
+			if(npoints_broi > 0 && show_broi == true)
+			{
+				g.setColor(Color.blue);
+
+				for(int i = 0; i < npoints_broi ; i++)
+					g.drawRect(screenX((int)broi_points[i].getX()), screenY((int)broi_points[i].getY()), 1, 1);
+			}
+
+			if(npoints > 0 && show_roi == true)
+			{
+				g.setColor(Color.cyan);
+
+				for(int i = 0; i < npoints ; i++)
+					g.drawRect(screenX(xpoints_b[i]), screenY(ypoints_b[i]), 1, 1);
+			}
 		}
 
 		public void makeROI(int x, int y)
@@ -655,15 +675,16 @@ public class Yawi_2D implements PlugInFilter
 			//the plugin is executed only if it's active <=> work=true
 			if(work)
 			{
-				int off_X = x;
-				int off_Y = y;
+				start_x = x;
+				start_y = y;
 
-				setThreshold(off_X,off_Y);
-				autoOutline(off_X, off_Y);
+				setThreshold(x, y);
+				autoOutline(x, y);
 
 				//there's a selection
 				if(traceEdge())
 				{
+/*
 					IJ.write("num points ROI: " + npoints + "\n");
 					ResultsTable rt = ResultsTable.getResultsTable();
 					rt.reset();
@@ -675,7 +696,7 @@ public class Yawi_2D implements PlugInFilter
 					}
 
 					rt.show("Base ROI Points");
-
+*/
 					roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
 					img.setRoi(roi);
 //					roi.addOrSubtract();
@@ -875,7 +896,6 @@ public class Yawi_2D implements PlugInFilter
 			else if(b == button4) 
 			{
 				//add _snap.jpg to image name
-				//String exp_name = img_name.substring(0,img_name.indexOf(".jpg")) + "_snap.jpg";
 				String exp_name = img_name.substring(0,img_name.indexOf(".jpg")) + "_snap.png";
 
 				//creating new image and its processor
@@ -1214,8 +1234,8 @@ public class Yawi_2D implements PlugInFilter
 
 				while(cur_ind < npoints)
 				{
-					IJ.write("first point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
-							+ "," + ypoints_b[cur_ind] + "\n");
+//					IJ.write("first point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
+//							+ "," + ypoints_b[cur_ind] + "\n");
 
 					//copy a point
 					xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
@@ -1242,9 +1262,9 @@ public class Yawi_2D implements PlugInFilter
 					{
 						s_ind--;
 
-						IJ.write("Found close points - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] + "," 
-									+ ypoints_b[cur_ind] + " s_ind: " + s_ind + " -> " + xpoints_b[s_ind]
-									+ "," + ypoints_b[s_ind] + "\n");
+//						IJ.write("Found close points - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] + "," 
+//									+ ypoints_b[cur_ind] + " s_ind: " + s_ind + " -> " + xpoints_b[s_ind]
+//									+ "," + ypoints_b[s_ind] + "\n");
 
 						found = false;
 						cur_ind = s_ind;
@@ -1254,8 +1274,8 @@ public class Yawi_2D implements PlugInFilter
 
 					if(cur_ind < npoints)
 					{
-						IJ.write("second point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
-								+ "," + ypoints_b[cur_ind] + "\n");
+//						IJ.write("second point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
+//								+ "," + ypoints_b[cur_ind] + "\n");
 
 						xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
 						ypoints_smooth[smooth_points] = ypoints_b[cur_ind];
@@ -1265,47 +1285,6 @@ public class Yawi_2D implements PlugInFilter
 					}
 				}
 
-/*
-				for(int i = 0; i < npoints - 1; i++)
-				{
-					IJ.write("i: " + i + "\n");
-
-					xpoints_smooth[smooth_points] = xpoints_b[i];
-					ypoints_smooth[smooth_points] = ypoints_b[i];
-					smooth_points++;
-
-					s_ind = i + 1;
-
-					while(s_ind < npoints && !found)
-					{
-						// found a close point
-						if((xpoints_b[i] == xpoints_b[s_ind] && Math.abs(ypoints_b[i] - ypoints_b[s_ind]) == 2) ||
-						   (ypoints_b[i] == ypoints_b[s_ind] && Math.abs(xpoints_b[i] - xpoints_b[s_ind]) == 2))
-							found = true;
-
-						s_ind++;
-					}
-
-					if(found)
-					{
-						s_ind--;
-
-						IJ.write("Found close points - i: " + i + " -> " + xpoints_b[i] + "," + ypoints_b[i] + 
-								 " s_ind: " + s_ind + " -> " + xpoints_b[s_ind] + "," + ypoints_b[s_ind] + "\n");
-
-						found = false;
-						i = s_ind;
-					}
-
-					IJ.write("i + 1: " + (i+1) + " smooth_points: " + smooth_points + "\n");
-
-					xpoints_smooth[smooth_points] = xpoints_b[i + 1];
-					ypoints_smooth[smooth_points] = ypoints_b[i + 1];
-
-					smooth_points++;
-				}
-*/
-
 				for(int i = 0; i < smooth_points; i++)
 				{
 					xpoints_b[i] = xpoints_smooth[i];
@@ -1313,8 +1292,7 @@ public class Yawi_2D implements PlugInFilter
 				}
 
 				npoints = smooth_points;
-
-
+/*
 				ResultsTable rt = ResultsTable.getResultsTable();
 				rt.reset();
 				for (int i = 0; i < npoints ; i++) 
@@ -1325,7 +1303,7 @@ public class Yawi_2D implements PlugInFilter
 				}
 				
 				rt.show("smoothed ROI Points");
-
+*/
 				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
 				img.setRoi(roi);
 			}
