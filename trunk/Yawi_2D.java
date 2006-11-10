@@ -19,7 +19,7 @@
 // Start date: 
 // 	2004-05-05
 // Last update date: 
-// 	2006-11-02 
+// 	2006-11-10 
 //
 // Authors:
 // 	Davide Coppola - dmc@dev-labs.net
@@ -134,6 +134,9 @@ public class Yawi_2D implements PlugInFilter
 	private static int comp_p2 = 3;
 	private static int comp_p3 = 2;
 	private static int comp_p4 = 1;
+
+	// what algorithm to use
+	private int seg_algo = 0;
 
 	//About and image requirements
 	public int setup(String arg, ImagePlus img) 
@@ -346,6 +349,75 @@ public class Yawi_2D implements PlugInFilter
 					lowerThreshold = color;
 			}
 		}
+	}
+
+	//set the threshold of the ROI
+	private void setThreshold2(int x, int y)
+	{
+		//must be odd
+		int side = 5;
+		int dist = side/2;
+		int color;
+
+		int i,k;
+
+		lowerThreshold = 255;
+		upperThreshold = 0;
+
+		int tot_col = 0;
+		int med = 0;
+		int low_vals = 0;
+		int upp_vals = 0; 
+		int med_vals = 0;
+
+		int sup_inc = 5;
+		int low_inc = 5;
+
+		for(i = (y-dist);i <= (y+dist);i++)
+		{
+			for(k = (x-dist);k <= (x+dist);k++)
+			{
+				color = get_color(k,i);
+
+				tot_col += color;
+
+				IJ.write(color + " ");
+
+				if(color > upperThreshold)
+					upperThreshold = color;
+				else if(color < lowerThreshold)
+					lowerThreshold = color;
+			}
+		}
+
+		med = (int)(tot_col / (side * side));
+
+		// count group of vals
+		for(i = (y-dist);i <= (y+dist);i++)
+		{
+			for(k = (x-dist);k <= (x+dist);k++)
+			{
+				color = get_color(k,i);
+
+				if(color > med)
+					upp_vals++;
+				else if(color < med)
+					low_vals++;
+				else
+					med_vals++;
+			}
+		}
+
+		IJ.write("low: " + lowerThreshold + " - upp: " + upperThreshold + " - med: " + med + "\n");
+		IJ.write("#low vals: " + low_vals + " - #upp vals: " + upp_vals + " - #med vals: " + med_vals + "\n");
+
+		if((med + sup_inc) < upperThreshold)
+			upperThreshold = med + sup_inc;
+
+		if((med - low_inc) > lowerThreshold)
+			lowerThreshold = med - low_inc;
+
+		IJ.write("low: " + lowerThreshold + " - upp: " + upperThreshold + " - med: " + med + "\n");
 	}
 
 	//find ROI border
@@ -654,7 +726,23 @@ public class Yawi_2D implements PlugInFilter
 			}
 		}
 
+
 		public void makeROI(int x, int y)
+		{
+			switch(seg_algo)
+			{
+				case 0:
+					makeROI1(x, y);
+					break;
+				case 1:
+					makeROI2(x, y);
+					break;
+				default:
+					break;
+			}	
+		}
+
+		public void makeROI1(int x, int y)
 		{
 			//get current slice number
 			cur_slice = img.getCurrentSlice();
@@ -737,6 +825,89 @@ public class Yawi_2D implements PlugInFilter
 			}
 		}
 
+		public void makeROI2(int x, int y)
+		{
+			//get current slice number
+			cur_slice = img.getCurrentSlice();
+
+			//user have changed slice
+			if(cur_slice != prev_slice)
+			{
+				//update pixels data with current slice
+				pixels = (byte[])stack.getPixels(cur_slice);
+
+				prev_slice = cur_slice;
+			}
+			
+			//user clicks on the image without starting the plugin
+			if(first_click & !work)
+					IJ.write("Yawi2D is OFF, you have to start it to work.\n");
+
+			//the plugin is executed only if it's active <=> work=true
+			if(work)
+			{
+				start_x = x;
+				start_y = y;
+
+				setThreshold2(x, y);
+				autoOutline(x, y);
+
+				//there's a selection
+				if(traceEdge())
+				{
+/*
+					IJ.write("num points ROI: " + npoints + "\n");
+					ResultsTable rt = ResultsTable.getResultsTable();
+					rt.reset();
+					for (int i = 0; i < npoints ; i++) 
+					{
+						rt.incrementCounter();
+						rt.addValue("ROI_x", xpoints[i]);
+						rt.addValue("ROI_y", ypoints[i]);
+					}
+
+					rt.show("Base ROI Points");
+*/
+					roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
+					img.setRoi(roi);
+//					roi.addOrSubtract();
+/*
+					IJ.write("num points ROI: " + npoints + "\n");
+					IJ.write("num points BROI: " + npoints_broi + "\n");
+					IJ.write("ROI: " + roi + "\n");
+
+					ResultsTable rt = ResultsTable.getResultsTable();
+					rt.reset();
+					for (int i = 0; i < npoints ; i++) 
+					{
+						rt.incrementCounter();
+						rt.addValue("ROI_x", xpoints_b[i]);
+						rt.addValue("ROI_y", ypoints_b[i]);
+					}
+
+					rt.show("Base ROI Points");
+
+					Arrays.sort(broi_points, 0, npoints_broi, new PointYComparator());
+
+					ResultsTable rt2 = ResultsTable.getResultsTable();
+					rt2.reset();
+					for (int i = 0; i < npoints_broi ; i++) 
+					{
+						rt2.incrementCounter();
+						rt2.addValue("BROI_x", broi_points[i].getX());
+						rt2.addValue("BROI_y", broi_points[i].getY());
+					}
+					rt2.show("Border ROI Points");
+*/
+				}
+				else	//no selection
+				{
+					img.killRoi();
+					IJ.write("No selection avalaible, retry\n");
+				}
+			}
+		}
+
 		//mouse is clicked on the image
 		public void mousePressed(MouseEvent e) 
 		{
@@ -747,13 +918,15 @@ public class Yawi_2D implements PlugInFilter
 		}
 	} 
 	
-	class MainWindow extends ImageWindow implements ActionListener 
+	class MainWindow extends ImageWindow implements ActionListener, ItemListener
 	{
 		//panel buttons
 		private Button button1, button2, button3, button4;
 		private Button button5, button6, button7;
 		private Button button8, button9;
 		private Button button10, button11, button12;
+
+		private Choice menu1;
 
 		private TextField x_field, y_field;
 
@@ -795,6 +968,12 @@ public class Yawi_2D implements PlugInFilter
 			button4 = new Button(" Snapshot ");
 			button4.addActionListener(this);
 			panel.add(button4);
+
+			menu1 = new Choice();
+			menu1.add("Seg 1");
+			menu1.add("Seg 2");
+			menu1.addItemListener(this);
+			panel.add(menu1);
 
 			//add the pannel to the window and show it
 			add(panel);
@@ -871,6 +1050,15 @@ public class Yawi_2D implements PlugInFilter
 			// -- END FIFTTH ROW --
 
 			pack();
+		}
+
+		public void itemStateChanged(ItemEvent e)
+		{
+			Object b = e.getSource();
+
+			// set the segmentation algorithm
+			if(b == menu1)
+				seg_algo = menu1.getSelectedIndex();
 		}
 
 		public void actionPerformed(ActionEvent e)
