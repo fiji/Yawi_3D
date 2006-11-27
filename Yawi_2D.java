@@ -19,7 +19,7 @@
 // Start date: 
 // 	2004-05-05
 // Last update date: 
-// 	2006-11-10 
+// 	2006-11-27 
 //
 // Authors:
 // 	Davide Coppola - dmc@dev-labs.net
@@ -68,9 +68,6 @@ public class Yawi_2D implements PlugInFilter
 	private int edgeX, edgeY;
 	//initial direction of edge
 	private int startDir;
-
-	private boolean shift = false;
-	private boolean alt = false;
 	
 	private static final int UP = 0, DOWN = 1, UP_OR_DOWN = 2, LEFT = 3, RIGHT = 4, LEFT_OR_RIGHT = 5, NA = 6;
 	
@@ -726,7 +723,6 @@ public class Yawi_2D implements PlugInFilter
 			}
 		}
 
-
 		public void makeROI(int x, int y)
 		{
 			switch(seg_algo)
@@ -785,8 +781,13 @@ public class Yawi_2D implements PlugInFilter
 
 					rt.show("Base ROI Points");
 */
+					Roi previousRoi = img.getRoi();
 					roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
+					img.killRoi();
 					img.setRoi(roi);
+
+					if (previousRoi != null)
+						roi.update(IJ.shiftKeyDown(), IJ.altKeyDown());
 //					roi.addOrSubtract();
 /*
 					IJ.write("num points ROI: " + npoints + "\n");
@@ -868,9 +869,13 @@ public class Yawi_2D implements PlugInFilter
 
 					rt.show("Base ROI Points");
 */
+					Roi previousRoi = img.getRoi();
 					roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
+					img.killRoi();
 					img.setRoi(roi);
-//					roi.addOrSubtract();
+
+					if (previousRoi != null)
+						roi.update(IJ.shiftKeyDown(), IJ.altKeyDown());
 /*
 					IJ.write("num points ROI: " + npoints + "\n");
 					IJ.write("num points BROI: " + npoints_broi + "\n");
@@ -911,10 +916,17 @@ public class Yawi_2D implements PlugInFilter
 		//mouse is clicked on the image
 		public void mousePressed(MouseEvent e) 
 		{
-			//original mousePressed 	
-			super.mousePressed(e);
+			if(work == true)
+				makeROI(offScreenX(e.getX()), offScreenY(e.getY()));
+			// original mousePressed
+			else
+			{
+				super.mousePressed(e);
 
-			makeROI(offScreenX(e.getX()), offScreenY(e.getY()));
+				//user clicks on the image without starting the plugin
+				if(first_click)
+					IJ.write("Yawi2D is OFF, you have to start it before to start your work.\n");
+			}
 		}
 	} 
 	
@@ -1080,79 +1092,9 @@ public class Yawi_2D implements PlugInFilter
 			//exit
 			else if(b == button3) 
 				this.dispose();
-			//snapshot
+			//take a snapshot
 			else if(b == button4) 
-			{
-				//add _snap.jpg to image name
-				String exp_name = img_name.substring(0,img_name.indexOf(".jpg")) + "_snap.png";
-
-				//creating new image and its processor
-				ImagePlus exp_img = NewImage.createRGBImage(exp_name, ip_width, ip_height, 1, NewImage.FILL_BLACK);
-				ImageProcessor exp_ip = exp_img.getProcessor();
-
-				//copy original image into the new
-				exp_ip.copyBits(ip, 0, 0, Blitter.COPY);
-
-				//image saver
-				FileSaver fs;
-				//creating the filesaver
-				fs = new FileSaver(exp_img);
-
-				// draw fill if it's showed
-				if(npoints_broi > 0 && show_roi_fill == true)
-				{
-					Rectangle roi_rect = roi.getBounds();
-
-					for(int x = (int)roi_rect.getX(); x < (int) (roi_rect.getX() + roi_rect.getWidth()); x++)
-					{
-						for(int y = (int)roi_rect.getY(); y < (int) (roi_rect.getY() + roi_rect.getHeight()); y++)
-						{
-							// a point inside the roi
-							if(roi.contains(x, y) == true)
-							{
-								int value = pixels[(ip_width * y) + x] & 0xff;
-
-								// a point inside the treshold
-								if(value >= lowerThreshold && value <= upperThreshold)
-									exp_ip.setColor(Color.green);
-								// a point not in the treshold
-								else
-									exp_ip.setColor(Color.red);
-
-								exp_ip.drawPixel(x, y);
-							}
-						}
-					}
-				}
-
-				//set lines color
-				exp_ip.setColor(Color.yellow);
-
-				//draw ROI lines
-				for(int i = 0; i < npoints-1 ; i++)
-						exp_ip.drawLine(xpoints_b[i], ypoints_b[i], xpoints_b[i+1], ypoints_b[i+1]);
-
-				exp_ip.drawLine(xpoints_b[npoints - 1], ypoints_b[npoints - 1], xpoints_b[0], ypoints_b[0]);
-
-				if(npoints_broi > 0 && show_broi == true)
-				{
-					exp_ip.setColor(Color.blue);
-
-					for(int i = 0; i < npoints_broi ; i++)
-						exp_ip.drawPixel((int)broi_points[i].getX(), (int)broi_points[i].getY());
-				}
-
-				if(npoints > 0 && show_roi == true)
-				{
-					exp_ip.setColor(Color.cyan);
-
-					for(int i = 0; i < npoints ; i++)
-						exp_ip.drawPixel(xpoints_b[i], ypoints_b[i]);
-				}
-
-				//save new image
-				fs.saveAsPng();
-			}
+				takeSnapshot();
 			else if(b == button5)
 			{
 				if(show_roi == true)
@@ -1195,406 +1137,490 @@ public class Yawi_2D implements PlugInFilter
 				y_field.setText("");
 			}
 			else if(b == button10)
+				generateROIs();
+			else if(b == button11)
+				smoothROI1();
+			else if(b == button12)
+				smoothROI2();
+		}
+	}
+
+	// save the current Image in PNG format
+	void takeSnapshot()
+	{
+		//add _snap.jpg to image name
+		String exp_name = "snap.png";
+
+		//creating new image and its processor
+		ImagePlus exp_img = NewImage.createRGBImage(exp_name, ip_width, ip_height, 1, NewImage.FILL_BLACK);
+		ImageProcessor exp_ip = exp_img.getProcessor();
+
+		//copy original image into the new
+		exp_ip.copyBits(ip, 0, 0, Blitter.COPY);
+
+		//image saver
+		FileSaver fs;
+		//creating the filesaver
+		fs = new FileSaver(exp_img);
+
+		// draw fill if it's showed
+		if(npoints_broi > 0 && show_roi_fill == true)
+		{
+			Rectangle roi_rect = roi.getBounds();
+
+			for(int x = (int)roi_rect.getX(); x < (int) (roi_rect.getX() + roi_rect.getWidth()); x++)
 			{
-				int[] xpoints_bk = new int[npoints];
-				int[] ypoints_bk = new int[npoints];
-
-				for(int i = 0; i < npoints; i++)
+				for(int y = (int)roi_rect.getY(); y < (int) (roi_rect.getY() + roi_rect.getHeight()); y++)
 				{
-					xpoints_bk[i] = xpoints_b[i];
-					ypoints_bk[i] = ypoints_b[i];
-				}
-
-				Roi roi_bk = new PolygonRoi(xpoints_bk, ypoints_bk, npoints, Roi.TRACED_ROI);
-
-				Rectangle roi_rect2;
-				Rectangle roi_rect = roi_bk.getBounds();
-
-				String img_name;
-
-				ImagePlus exp_img;
-				ImageProcessor exp_ip;
-
-				int start_lowerThreshold = lowerThreshold;
-				int start_upperThreshold = upperThreshold;
-
-				int start_x = (int)roi_rect.getX();
-				int start_y = (int)roi_rect.getY();
-				int end_x = (int) (roi_rect.getX() + roi_rect.getWidth());
-				int end_y = (int) (roi_rect.getY() + roi_rect.getHeight());
-
-				for(int x_roi = start_x; x_roi < end_x; x_roi++)
-				{
-					for(int y_roi = start_y; y_roi < end_y; y_roi++)
+					// a point inside the roi
+					if(roi.contains(x, y) == true)
 					{
-						if(roi_bk.contains(x_roi, y_roi) == true)
+						int value = pixels[(ip_width * y) + x] & 0xff;
+
+						// a point inside the treshold
+						if(value >= lowerThreshold && value <= upperThreshold)
+							exp_ip.setColor(Color.green);
+						// a point not in the treshold
+						else
+							exp_ip.setColor(Color.red);
+
+						exp_ip.drawPixel(x, y);
+					}
+				}
+			}
+		}
+
+		//set lines color
+		exp_ip.setColor(Color.yellow);
+
+		//draw ROI lines
+		for(int i = 0; i < npoints-1 ; i++)
+			exp_ip.drawLine(xpoints_b[i], ypoints_b[i], xpoints_b[i+1], ypoints_b[i+1]);
+
+		exp_ip.drawLine(xpoints_b[npoints - 1], ypoints_b[npoints - 1], xpoints_b[0], ypoints_b[0]);
+
+		if(npoints_broi > 0 && show_broi == true)
+		{
+			exp_ip.setColor(Color.blue);
+
+			for(int i = 0; i < npoints_broi ; i++)
+				exp_ip.drawPixel((int)broi_points[i].getX(), (int)broi_points[i].getY());
+		}
+
+		if(npoints > 0 && show_roi == true)
+		{
+			exp_ip.setColor(Color.cyan);
+
+			for(int i = 0; i < npoints ; i++)
+				exp_ip.drawPixel(xpoints_b[i], ypoints_b[i]);
+		}
+
+		//save new image
+		fs.saveAsPng();
+	}
+
+	void smoothROI1()
+	{
+		//make new arrays
+		int[] xpoints_smooth = new int[npoints];
+		int[] ypoints_smooth = new int[npoints];
+
+		boolean search = true;
+		boolean found = false;
+		int s_ind;
+		int smooth_points = 0;
+
+		for(int i = 0; i < npoints; i++)
+		{
+			s_ind = i + 1;
+
+			while(s_ind < npoints && !found)
+			{
+				// found an equal point
+				if(xpoints_b[i] == xpoints_b[s_ind] && ypoints_b[i] == ypoints_b[s_ind])
+					found = true;
+
+				s_ind++;
+			}
+
+			if(found)
+			{
+				s_ind--;
+
+				found = false;
+				i = s_ind;
+			}
+
+			xpoints_smooth[smooth_points] = xpoints_b[i];
+			ypoints_smooth[smooth_points] = ypoints_b[i];
+
+			smooth_points++;
+		}
+
+		for(int i = 0; i < smooth_points; i++)
+		{
+			xpoints_b[i] = xpoints_smooth[i];
+			ypoints_b[i] = ypoints_smooth[i];
+		}
+
+		npoints = smooth_points;
+
+		roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
+		img.setRoi(roi);
+	}
+
+	void smoothROI2()
+	{
+		//make new arrays
+		int[] xpoints_smooth = new int[npoints];
+		int[] ypoints_smooth = new int[npoints];
+
+		boolean search = true;
+		boolean found = false;
+		int s_ind;
+		int smooth_points = 0;
+
+		int cur_ind = 0;
+
+		while(cur_ind < npoints)
+		{
+//			IJ.write("first point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
+//					+ "," + ypoints_b[cur_ind] + "\n");
+
+			//copy a point
+			xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
+			ypoints_smooth[smooth_points] = ypoints_b[cur_ind];
+			smooth_points++;
+
+			s_ind = cur_ind + 1;
+
+			// look for a close point
+			while(s_ind < npoints && !found)
+			{
+				// found a close point
+				if((xpoints_b[cur_ind] == xpoints_b[s_ind] && 
+					Math.abs(ypoints_b[cur_ind] - ypoints_b[s_ind]) == 2) ||
+				   (ypoints_b[cur_ind] == ypoints_b[s_ind] && 
+					Math.abs(xpoints_b[cur_ind] - xpoints_b[s_ind]) == 2))
+					found = true;
+
+				s_ind++;
+			}
+
+			// close point found
+			if(found)
+			{
+				s_ind--;
+
+//				IJ.write("Found close points - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] + "," 
+//							+ ypoints_b[cur_ind] + " s_ind: " + s_ind + " -> " + xpoints_b[s_ind]
+//							+ "," + ypoints_b[s_ind] + "\n");
+
+				found = false;
+				cur_ind = s_ind;
+			}
+			else
+				cur_ind++;
+
+			if(cur_ind < npoints)
+			{
+//				IJ.write("second point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
+//						+ "," + ypoints_b[cur_ind] + "\n");
+
+				xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
+				ypoints_smooth[smooth_points] = ypoints_b[cur_ind];
+
+				smooth_points++;
+				cur_ind++;
+			}
+		}
+
+		for(int i = 0; i < smooth_points; i++)
+		{
+			xpoints_b[i] = xpoints_smooth[i];
+			ypoints_b[i] = ypoints_smooth[i];
+		}
+
+		npoints = smooth_points;
+/*
+		ResultsTable rt = ResultsTable.getResultsTable();
+		rt.reset();
+		for (int i = 0; i < npoints ; i++) 
+		{
+			rt.incrementCounter();
+			rt.addValue("ROI_x", xpoints_b[i]);
+			rt.addValue("ROI_y", ypoints_b[i]);
+		}
+				
+		rt.show("smoothed ROI Points");
+*/
+		roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
+		img.setRoi(roi);
+	}
+
+	void generateROIs()
+	{
+		int[] xpoints_bk = new int[npoints];
+		int[] ypoints_bk = new int[npoints];
+
+		for(int i = 0; i < npoints; i++)
+		{
+			xpoints_bk[i] = xpoints_b[i];
+			ypoints_bk[i] = ypoints_b[i];
+		}
+
+		Roi roi_bk = new PolygonRoi(xpoints_bk, ypoints_bk, npoints, Roi.TRACED_ROI);
+
+		Rectangle roi_rect2;
+		Rectangle roi_rect = roi_bk.getBounds();
+
+		String img_name;
+
+		ImagePlus exp_img;
+		ImageProcessor exp_ip;
+
+		int start_lowerThreshold = lowerThreshold;
+		int start_upperThreshold = upperThreshold;
+
+		int start_x = (int)roi_rect.getX();
+		int start_y = (int)roi_rect.getY();
+		int end_x = (int) (roi_rect.getX() + roi_rect.getWidth());
+		int end_y = (int) (roi_rect.getY() + roi_rect.getHeight());
+
+		for(int x_roi = start_x; x_roi < end_x; x_roi++)
+		{
+			for(int y_roi = start_y; y_roi < end_y; y_roi++)
+			{
+				if(roi_bk.contains(x_roi, y_roi) == true)
+				{
+					img_name = start_x + "_" + start_y + "-" + x_roi + "_" + y_roi + ".png";
+
+					//creating new image and its processor
+					exp_img = NewImage.createRGBImage(img_name, ip_width, ip_height, 1, NewImage.FILL_BLACK);
+					exp_ip = exp_img.getProcessor();
+
+					//copy original image into the new
+					exp_ip.copyBits(ip, 0, 0, Blitter.COPY);
+
+					setThreshold(x_roi, y_roi);
+					autoOutline(x_roi, y_roi);
+
+					//there's a selection
+					if(traceEdge())
+					{
+						roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
+
+						// draw fill if it's showed
+						if(npoints_broi > 0 && show_roi_fill == true)
 						{
-							img_name = start_x + "_" + start_y + "-" + x_roi + "_" + y_roi + ".png";
+							roi_rect2 = roi.getBounds();
 
-							//creating new image and its processor
-							exp_img = NewImage.createRGBImage(img_name, ip_width, ip_height, 1, NewImage.FILL_BLACK);
-							exp_ip = exp_img.getProcessor();
-
-							//copy original image into the new
-							exp_ip.copyBits(ip, 0, 0, Blitter.COPY);
-
-							setThreshold(x_roi, y_roi);
-							autoOutline(x_roi, y_roi);
-
-							//there's a selection
-							if(traceEdge())
+							for(int x = (int)roi_rect.getX(); x < (int) (roi_rect.getX() + roi_rect.getWidth()); x++)
 							{
-								roi = new PolygonRoi(xpoints, ypoints, npoints, Roi.TRACED_ROI);
-
-								// draw fill if it's showed
-								if(npoints_broi > 0 && show_roi_fill == true)
+								for(int y = (int)roi_rect.getY(); y < (int) (roi_rect.getY() + roi_rect.getHeight()); y++)
 								{
-									roi_rect2 = roi.getBounds();
-
-									for(int x = (int)roi_rect.getX(); x < (int) (roi_rect.getX() + roi_rect.getWidth()); x++)
+									// a point inside the roi
+									if(roi.contains(x, y) == true)
 									{
-										for(int y = (int)roi_rect.getY(); y < (int) (roi_rect.getY() + roi_rect.getHeight()); y++)
-										{
-											// a point inside the roi
-											if(roi.contains(x, y) == true)
-											{
-												int value = pixels[(ip_width * y) + x] & 0xff;
+										int value = pixels[(ip_width * y) + x] & 0xff;
 
-												// a point inside the treshold
-												if(value >= lowerThreshold && value <= upperThreshold)
-													exp_ip.setColor(Color.green);
-												// a point not in the treshold
-												else
-													exp_ip.setColor(Color.red);
+										// a point inside the treshold
+										if(value >= lowerThreshold && value <= upperThreshold)
+											exp_ip.setColor(Color.green);
+										// a point not in the treshold
+										else
+											exp_ip.setColor(Color.red);
 
-												exp_ip.drawPixel(x, y);
-											}
-										}
+										exp_ip.drawPixel(x, y);
 									}
 								}
-
-								//set lines color
-								exp_ip.setColor(Color.yellow);
-
-								//draw ROI lines
-								for(int i = 0; i < npoints-1 ; i++)
-									exp_ip.drawLine(xpoints_b[i], ypoints_b[i], xpoints_b[i+1], ypoints_b[i+1]);
-
-								exp_ip.drawLine(xpoints_b[npoints - 1], ypoints_b[npoints - 1], xpoints_b[0], ypoints_b[0]);
-
-								if(npoints_broi > 0 && show_broi == true)
-								{
-									exp_ip.setColor(Color.blue);
-
-									for(int i = 0; i < npoints_broi ; i++)
-										exp_ip.drawPixel((int)broi_points[i].getX(), (int)broi_points[i].getY());
-								}
-
-								if(npoints > 0 && show_roi == true)
-								{
-									exp_ip.setColor(Color.cyan);
-
-									for(int i = 0; i < npoints ; i++)
-										exp_ip.drawPixel(xpoints_b[i], ypoints_b[i]);
-								}
-
-							// et color for origin point according to its threshold
-							int value = pixels[(ip_width * y_roi) + x_roi] & 0xff;
-							// a point inside the treshold
-							if(value >= start_lowerThreshold && value <= start_upperThreshold)
-								exp_ip.setColor(Color.green);
-							// a point not in the treshold
-							else
-								exp_ip.setColor(Color.red);
-
-								exp_ip.drawString("ROI from " + x_roi + "," + y_roi , 15, 15);
-
-								int comp_score = compareROIs(roi_bk, roi);
-
-								if(comp_score < 4)
-									exp_ip.setColor(Color.red);
-								else if(comp_score < 7)
-									exp_ip.setColor(Color.orange);
-								else if(comp_score < 10)
-									exp_ip.setColor(Color.yellow);
-								// u win - 10!
-								else
-									exp_ip.setColor(Color.green);
-
-								exp_ip.drawString("ROI score: " +  comp_score + "/10", 15, 30);
-							}
-							else
-							{
-								// et color for origin point according to its threshold
-								int value = pixels[(ip_width * y_roi) + x_roi] & 0xff;
-								// a point inside the treshold
-								if(value >= start_lowerThreshold && value <= start_upperThreshold)
-									exp_ip.setColor(Color.green);
-								// a point not in the treshold
-								else
-									exp_ip.setColor(Color.red);
-
-								exp_ip.drawString("NO ROI from " + x_roi + "," + y_roi  , 15, 15);
-
-								exp_ip.setColor(Color.yellow);
-								exp_ip.drawString("ROI score: NA", 15, 30);
-							}
-
-							exp_ip.setColor(Color.cyan);
-							exp_ip.drawPixel(x_roi, y_roi);
-
-							try
-							{
-								writeImage(exp_img, "./plugins/Yawi/tests/" + img_name);
-							}
-							catch (Exception exc) 
-							{
-								String msg = exc.getMessage();
-								if (msg==null || msg.equals(""))
-									msg = "" + exc;
-								IJ.showMessage("Yawi_2D", "An error occured writing the file.\n \n" + msg);
 							}
 						}
-					}
-				}
-			}
-			else if(b == button11)
-			{
-				//make new arrays
-	 			int[] xpoints_smooth = new int[npoints];
-	 			int[] ypoints_smooth = new int[npoints];
 
-				boolean search = true;
-				boolean found = false;
-				int s_ind;
-				int smooth_points = 0;
+						//set lines color
+						exp_ip.setColor(Color.yellow);
 
-				for(int i = 0; i < npoints; i++)
-				{
-					s_ind = i + 1;
+						//draw ROI lines
+						for(int i = 0; i < npoints-1 ; i++)
+							exp_ip.drawLine(xpoints_b[i], ypoints_b[i], xpoints_b[i+1], ypoints_b[i+1]);
 
-					while(s_ind < npoints && !found)
-					{
-						// found an equal point
-						if(xpoints_b[i] == xpoints_b[s_ind] && ypoints_b[i] == ypoints_b[s_ind])
-							found = true;
+						exp_ip.drawLine(xpoints_b[npoints - 1], ypoints_b[npoints - 1], xpoints_b[0], ypoints_b[0]);
 
-						s_ind++;
-					}
+						if(npoints_broi > 0 && show_broi == true)
+						{
+							exp_ip.setColor(Color.blue);
 
-					if(found)
-					{
-						s_ind--;
+							for(int i = 0; i < npoints_broi ; i++)
+								exp_ip.drawPixel((int)broi_points[i].getX(), (int)broi_points[i].getY());
+						}
 
-						found = false;
-						i = s_ind;
-					}
+						if(npoints > 0 && show_roi == true)
+						{
+							exp_ip.setColor(Color.cyan);
 
-					xpoints_smooth[smooth_points] = xpoints_b[i];
-					ypoints_smooth[smooth_points] = ypoints_b[i];
+							for(int i = 0; i < npoints ; i++)
+								exp_ip.drawPixel(xpoints_b[i], ypoints_b[i]);
+						}
 
-					smooth_points++;
-				}
+						// set color for origin point according to its threshold
+						int value = pixels[(ip_width * y_roi) + x_roi] & 0xff;
+						// a point inside the treshold
+						if(value >= start_lowerThreshold && value <= start_upperThreshold)
+							exp_ip.setColor(Color.green);
+						// a point not in the treshold
+						else
+							exp_ip.setColor(Color.red);
 
-				for(int i = 0; i < smooth_points; i++)
-				{
-					xpoints_b[i] = xpoints_smooth[i];
-					ypoints_b[i] = ypoints_smooth[i];
-				}
+						exp_ip.drawString("ROI from " + x_roi + "," + y_roi , 15, 15);
 
-				npoints = smooth_points;
+						int comp_score = compareROIs(roi_bk, roi);
 
-				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
-				img.setRoi(roi);
-			}
-			else if(b == button12)
-			{
-				//make new arrays
-	 			int[] xpoints_smooth = new int[npoints];
-	 			int[] ypoints_smooth = new int[npoints];
-
-				boolean search = true;
-				boolean found = false;
-				int s_ind;
-				int smooth_points = 0;
-
-				int cur_ind = 0;
-
-				while(cur_ind < npoints)
-				{
-//					IJ.write("first point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
-//							+ "," + ypoints_b[cur_ind] + "\n");
-
-					//copy a point
-					xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
-					ypoints_smooth[smooth_points] = ypoints_b[cur_ind];
-					smooth_points++;
-
-					s_ind = cur_ind + 1;
-
-					// look for a close point
-					while(s_ind < npoints && !found)
-					{
-						// found a close point
-						if((xpoints_b[cur_ind] == xpoints_b[s_ind] && 
-							Math.abs(ypoints_b[cur_ind] - ypoints_b[s_ind]) == 2) ||
-						   (ypoints_b[cur_ind] == ypoints_b[s_ind] && 
-							Math.abs(xpoints_b[cur_ind] - xpoints_b[s_ind]) == 2))
-							found = true;
-
-						s_ind++;
-					}
-
-					// close point found
-					if(found)
-					{
-						s_ind--;
-
-//						IJ.write("Found close points - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] + "," 
-//									+ ypoints_b[cur_ind] + " s_ind: " + s_ind + " -> " + xpoints_b[s_ind]
-//									+ "," + ypoints_b[s_ind] + "\n");
-
-						found = false;
-						cur_ind = s_ind;
+						if(comp_score < 4)
+							exp_ip.setColor(Color.red);
+						else if(comp_score < 7)
+							exp_ip.setColor(Color.orange);
+						else if(comp_score < 10)
+							exp_ip.setColor(Color.yellow);
+						// u win - 10!
+						else
+							exp_ip.setColor(Color.green);
+		
+						exp_ip.drawString("ROI score: " +  comp_score + "/10", 15, 30);
 					}
 					else
-						cur_ind++;
-
-					if(cur_ind < npoints)
 					{
-//						IJ.write("second point insertion - cur_ind: " + cur_ind + " -> " + xpoints_b[cur_ind] 
-//								+ "," + ypoints_b[cur_ind] + "\n");
+						// et color for origin point according to its threshold
+						int value = pixels[(ip_width * y_roi) + x_roi] & 0xff;
+						// a point inside the treshold
+						if(value >= start_lowerThreshold && value <= start_upperThreshold)
+							exp_ip.setColor(Color.green);
+						// a point not in the treshold
+						else
+							exp_ip.setColor(Color.red);
 
-						xpoints_smooth[smooth_points] = xpoints_b[cur_ind];
-						ypoints_smooth[smooth_points] = ypoints_b[cur_ind];
+						exp_ip.drawString("NO ROI from " + x_roi + "," + y_roi  , 15, 15);
 
-						smooth_points++;
-						cur_ind++;
+						exp_ip.setColor(Color.yellow);
+						exp_ip.drawString("ROI score: NA", 15, 30);
+					}
+
+					exp_ip.setColor(Color.cyan);
+					exp_ip.drawPixel(x_roi, y_roi);
+
+					try
+					{
+						writeImage(exp_img, "./plugins/Yawi/tests/" + img_name);
+					}
+					catch (Exception exc) 
+					{
+						String msg = exc.getMessage();
+						if (msg==null || msg.equals(""))
+							msg = "" + exc;
+						IJ.showMessage("Yawi_2D", "An error occured writing the file.\n \n" + msg);
 					}
 				}
-
-				for(int i = 0; i < smooth_points; i++)
-				{
-					xpoints_b[i] = xpoints_smooth[i];
-					ypoints_b[i] = ypoints_smooth[i];
-				}
-
-				npoints = smooth_points;
-/*
-				ResultsTable rt = ResultsTable.getResultsTable();
-				rt.reset();
-				for (int i = 0; i < npoints ; i++) 
-				{
-					rt.incrementCounter();
-					rt.addValue("ROI_x", xpoints_b[i]);
-					rt.addValue("ROI_y", ypoints_b[i]);
-				}
-				
-				rt.show("smoothed ROI Points");
-*/
-				roi = new PolygonRoi(xpoints_smooth, ypoints_smooth, smooth_points, Roi.TRACED_ROI);
-				img.setRoi(roi);
 			}
 		}
+	}
 
-		/// compare the second ROI to the first one and return a similarity value
-		public int compareROIs(Roi r1, Roi r2)
-		{
-			int score = 0;
+	/// compare the second ROI to the first one and return a similarity score
+	public int compareROIs(Roi r1, Roi r2)
+	{
+		int score = 0;
 
-			Rectangle roi_rect = r1.getBounds();
-			Rectangle roi_rect2 = r2.getBounds();
+		Rectangle roi_rect = r1.getBounds();
+		Rectangle roi_rect2 = r2.getBounds();
 
-			int area1 = 0;
-			int area2 = 0;
+		int area1 = 0;
+		int area2 = 0;
 
-			// compute area 1st ROI
-			int start_x = (int)roi_rect.getX();
-			int start_y = (int)roi_rect.getY();
-			int end_x = (int) (roi_rect.getX() + roi_rect.getWidth());
-			int end_y = (int) (roi_rect.getY() + roi_rect.getHeight());
+		// compute area 1st ROI
+		int start_x = (int)roi_rect.getX();
+		int start_y = (int)roi_rect.getY();
+		int end_x = (int) (roi_rect.getX() + roi_rect.getWidth());
+		int end_y = (int) (roi_rect.getY() + roi_rect.getHeight());
 
-			for(int x_roi = start_x; x_roi < end_x; x_roi++)
-				for(int y_roi = start_y; y_roi < end_y; y_roi++)
-					if(r1.contains(x_roi, y_roi))
-						area1++;
+		for(int x_roi = start_x; x_roi < end_x; x_roi++)
+			for(int y_roi = start_y; y_roi < end_y; y_roi++)
+				if(r1.contains(x_roi, y_roi))
+				area1++;
 
-			// compute area 2nd ROI
-			int start_x2 = (int)roi_rect2.getX();
-			int start_y2 = (int)roi_rect2.getY();
-			int end_x2 = (int) (roi_rect2.getX() + roi_rect2.getWidth());
-			int end_y2 = (int) (roi_rect2.getY() + roi_rect2.getHeight());
+	// compute area 2nd ROI
+	int start_x2 = (int)roi_rect2.getX();
+	int start_y2 = (int)roi_rect2.getY();
+	int end_x2 = (int) (roi_rect2.getX() + roi_rect2.getWidth());
+	int end_y2 = (int) (roi_rect2.getY() + roi_rect2.getHeight());
 
-			for(int x_roi = start_x2; x_roi < end_x2; x_roi++)
-				for(int y_roi = start_y2; y_roi < end_y2; y_roi++)
-					if(r2.contains(x_roi, y_roi))
-						area2++;
+	for(int x_roi = start_x2; x_roi < end_x2; x_roi++)
+		for(int y_roi = start_y2; y_roi < end_y2; y_roi++)
+			if(r2.contains(x_roi, y_roi))
+				area2++;
 
-			// compute areas difference
-			int diff_areas;
+	// compute areas difference
+	int diff_areas;
 
-			if(area1 > area2)
-				diff_areas = 100 - (area2 * 100 / area1);
-			else
-				diff_areas = 100 - (area1 * 100 / area2);
+	if(area1 > area2)
+		diff_areas = 100 - (area2 * 100 / area1);
+	else
+		diff_areas = 100 - (area1 * 100 / area2);
 
-			// assign score for areas diff
-			if(diff_areas < comp_tresh1)
-				score += comp_p1;
-			else if(diff_areas < comp_tresh2)
-				score += comp_p2;
-			else if(diff_areas < comp_tresh3)
-				score += comp_p3;
-			else if(diff_areas < comp_tresh3)
-				score += comp_p4;
+	// assign score for areas diff
+	if(diff_areas < comp_tresh1)
+		score += comp_p1;
+	else if(diff_areas < comp_tresh2)
+		score += comp_p2;
+	else if(diff_areas < comp_tresh3)
+		score += comp_p3;
+	else if(diff_areas < comp_tresh3)
+		score += comp_p4;
 	
-			//compute perimeters difference
-			int len1 = (int) r1.getLength();
-			int len2 = (int) r2.getLength();
+	//compute perimeters difference
+	int len1 = (int) r1.getLength();
+	int len2 = (int) r2.getLength();
 
-			int diff_len;
+	int diff_len;
 
-			if(len1 > area2)
-				diff_len = 100 - (len2 * 100 / len1);
-			else
-				diff_len = 100 - (len1 * 100 / len2);
+	if(len1 > area2)
+		diff_len = 100 - (len2 * 100 / len1);
+	else
+		diff_len = 100 - (len1 * 100 / len2);
 
-			// assign score for perimeters diff
-			if(diff_len < comp_tresh1)
-				score += comp_p1;
-			else if(diff_len < comp_tresh2)
-				score += comp_p2;
-			else if(diff_len < comp_tresh3)
-				score += comp_p3;
-			else if(diff_len < comp_tresh3)
-				score += comp_p4;
+	// assign score for perimeters diff
+		if(diff_len < comp_tresh1)
+			score += comp_p1;
+		else if(diff_len < comp_tresh2)
+			score += comp_p2;
+		else if(diff_len < comp_tresh3)
+			score += comp_p3;
+		else if(diff_len < comp_tresh3)
+			score += comp_p4;
 
-			//compute distance between ROIs
-			int dist = (int) Point.distance(start_x, start_y, start_x2, start_y2);
+		//compute distance between ROIs
+		int dist = (int) Point.distance(start_x, start_y, start_x2, start_y2);
 
-			// assign score for ROIs distance
-			if(dist < comp_tresh1)
-				score += comp_p1;
-			else if(dist < comp_tresh2)
-				score += comp_p2;
-			else if(dist < comp_tresh3)
-				score += comp_p3;
-			else if(dist < comp_tresh3)
-				score += comp_p4;
+		// assign score for ROIs distance
+		if(dist < comp_tresh1)
+			score += comp_p1;
+		else if(dist < comp_tresh2)
+			score += comp_p2;
+		else if(dist < comp_tresh3)
+			score += comp_p3;
+		else if(dist < comp_tresh3)
+			score += comp_p4;
 
-			return Math.round(score * comp_points_scale / comp_max_points);
-		}
+		return Math.round(score * comp_points_scale / comp_max_points);
+	}
 
-		void writeImage(ImagePlus imp, String path) throws Exception
-		{
-			int width = imp.getWidth();
-			int  height = imp.getHeight();
-			BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-			Graphics2D g = (Graphics2D)bi.getGraphics();
-			g.drawImage(imp.getImage(), 0, 0, null);
-			File f = new File(path);
-			ImageIO.write(bi, "png", f);
-		}
+	// write a PNG image using the passed path as name
+	void writeImage(ImagePlus imp, String path) throws Exception
+	{
+		int width = imp.getWidth();
+		int  height = imp.getHeight();
+		BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		Graphics2D g = (Graphics2D)bi.getGraphics();
+		g.drawImage(imp.getImage(), 0, 0, null);
+		File f = new File(path);
+		ImageIO.write(bi, "png", f);
 	}
 
 	//stack window
