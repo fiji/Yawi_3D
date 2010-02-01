@@ -12,7 +12,7 @@
 //
 //
 // Last update date: 
-// 	2009-07-16 
+// 	20010-02-01 
 //
 // Authors:
 // 	Davide Coppola - dmc@dev-labs.net
@@ -40,6 +40,7 @@ import ij.process.StackStatistics;
 
 import java.awt.Button;
 import java.awt.Color;
+import java.awt.Scrollbar;
 
 
 import java.awt.GridBagLayout;
@@ -93,7 +94,10 @@ public class Yawi_3D implements PlugIn{
         	imp.getCanvas().addMouseListener(this);        	
         //	setSize(1280, 1024);              
        	buildPanel();
-       	crateImage8();
+       	if(imp.getSlice()==1)
+			IJ.runPlugIn(imp,"ij.plugin.Converter","8-bit");
+       	else
+       		createImage8();
        	thread = new Thread(this, "Stack_Region");
         thread.start();
         }  
@@ -132,7 +136,9 @@ public class Yawi_3D implements PlugIn{
 //           button6.addActionListener(this);
 //           panel.add(button6);
            add(panel,new GBC(0,2,2,1).setFill(GBC.HORIZONTAL).setAnchor(GBC.WEST));
-           add(ic,new GBC(2,0,1,2).setAnchor(GBC.NORTH));             
+           add(ic,new GBC(2,0,1,2).setAnchor(GBC.NORTH)); 
+           if (imp.getStackSize()==1)
+   				this.sliceSelector = new Scrollbar(Scrollbar.HORIZONTAL, 1, 1, 1, 1); 
            add(this.sliceSelector,new GBC(2,2,1,1).setFill(GBC.HORIZONTAL).setAnchor(GBC.NORTH));                 
            pack();                          
            setVisible(true);
@@ -303,7 +309,7 @@ public class Yawi_3D implements PlugIn{
 		        super.close();
 		        return true;
 		    }
-private void crateImage8(){   	
+private void createImage8(){   	
 		int type=imp.getType();		
 		int nSlices=imp.getStackSize();
 		int inc = nSlices/20;
@@ -313,6 +319,7 @@ private void crateImage8(){
 			stack.addSlice(null,imp.getStack().getProcessor(i));   			   			   		
 		}
 		imp8=new ImagePlus(null,stack);
+		if(nSlices>1)
 		new StackConverter(imp8).convertToGray8();	
 	}   
 }     
